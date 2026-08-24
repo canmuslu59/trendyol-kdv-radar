@@ -1,0 +1,12 @@
+services:
+  kdv-radar:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - APP_PASSWORD=degistir-beni
+      - REQUEST_DELAY_MS=1400
+      - CRON_SCHEDULE=10 3 * * *
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

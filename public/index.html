@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KDV Radar — Trendyol Ürün Avcısı</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header>
+  <div>
+    <div class="eyebrow">TRENDYOL ÜRÜN AVCISI</div>
+    <h1>KDV Radar</h1>
+    <p>%1 KDV whitelist kategorilerinde fiyat ve değerlendirme hızını takip eder.</p>
+  </div>
+  <div class="header-actions">
+    <button id="scanBtn" class="primary">Şimdi Tara</button>
+    <button id="settingsBtn">Kategoriler</button>
+  </div>
+</header>
+
+<main>
+  <section class="stats" id="stats"></section>
+  <section class="panel filters">
+    <input id="q" placeholder="Ürün veya marka ara…" />
+    <select id="category"><option value="">Tüm whitelist</option></select>
+    <input id="minPrice" type="number" placeholder="Min fiyat" />
+    <input id="maxPrice" type="number" placeholder="Max fiyat" />
+    <input id="minD7" type="number" placeholder="Min 7G artış" />
+    <input id="minD30" type="number" placeholder="Min 30G artış" />
+    <select id="sort">
+      <option value="d30">30G artış</option><option value="d15">15G artış</option><option value="d7">7G artış</option>
+      <option value="d1">1G artış</option><option value="price">Fiyat</option><option value="rating">Toplam değerlendirme</option>
+    </select>
+    <button id="apply">Filtrele</button>
+  </section>
+
+  <section class="panel table-wrap">
+    <table>
+      <thead><tr><th>Ürün</th><th>Kategori</th><th>KDV</th><th>Baz kom.</th><th>En düşük fiyat</th><th>Toplam değ.</th><th>1G</th><th>7G</th><th>15G</th><th>30G</th><th>Tarih</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty" class="empty" hidden>Henüz veri yok. “Şimdi Tara” ile ilk taramayı başlat.</div>
+  </section>
+</main>
+
+<dialog id="settingsDialog">
+  <div class="dialog-head"><div><h2>%1 KDV Whitelist</h2><p>Tarama URL’lerini ve baz komisyonları buradan yönet.</p></div><button id="closeDialog">×</button></div>
+  <div id="categoriesList"></div>
+  <form id="addCategory" class="category-form">
+    <h3>Yeni kategori</h3>
+    <input name="name" placeholder="Kategori adı" required />
+    <input name="trendyol_url" placeholder="Trendyol kategori URL" required />
+    <input name="vat_rate" type="number" step="0.01" value="1" placeholder="KDV %" required />
+    <input name="base_commission" type="number" step="0.01" placeholder="Baz komisyon %" />
+    <input name="exclude_keywords" placeholder="Hariç kelimeler: kelime1|kelime2" />
+    <input name="max_pages" type="number" value="0" placeholder="Max sayfa (0=tümü)" />
+    <button class="primary">Ekle</button>
+  </form>
+  <div class="notice">Baz komisyon alanı tahmini/referans orandır. Satıcıya, alt kategoriye ve kampanyaya göre değişebilir.</div>
+</dialog>
+
+<script src="/app.js"></script>
+</body>
+</html>
