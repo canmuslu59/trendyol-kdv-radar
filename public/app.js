@@ -11,6 +11,14 @@ async function loadCategories(){
 }
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function delta(n){if(n==null)return '—';return `<span class="delta ${n>0?'pos':n<0?'neg':''}">${n>0?'+':''}${fmt(n)}</span>`}
+function scanNote(state={}){
+  if(state.running) return state.progress?.category || state.progress?.product || '';
+  if(state.error) return 'Hata: '+state.error;
+  const r=state.lastResult;
+  if(!r) return '';
+  const e=(r.errors||[]).length;
+  return `${fmt(r.products||0)} ürün / ${fmt(r.pages||0)} sayfa${e?` / ${e} hata`:''}` + (e?` — ${r.errors[0]}`:'');
+}
 
 async function loadStats(){
  const s=await json('/api/stats');
@@ -19,7 +27,7 @@ async function loadStats(){
   <div class="stat"><div class="l">Aktif ürün</div><div class="n">${fmt(s.totalProducts)}</div></div>
   <div class="stat"><div class="l">Bugün taranan</div><div class="n">${fmt(s.scannedToday)}</div></div>
   <div class="stat"><div class="l">Whitelist kategori</div><div class="n">${fmt(s.enabledCategories)}</div></div>
-  <div class="stat"><div class="l">Tarama</div><div class="n">${state.running?'Çalışıyor':'Hazır'}</div><div class="status">${esc(state.progress?.category||state.progress?.product||state.error||'')}</div></div>`;
+  <div class="stat"><div class="l">Tarama</div><div class="n">${state.running?'Çalışıyor':'Hazır'}</div><div class="status">${esc(scanNote(state))}</div></div>`;
  $('#scanBtn').disabled=!!state.running;
 }
 
@@ -57,10 +65,39 @@ async function saveCategory(e){
 }
 
 $('#apply').onclick=loadProducts;
-$('#scanBtn').onclick=async()=>{await json('/api/scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({discover:true})});await loadStats()};
+$('#scanBtn').onclick=async()=>{
+  const btn=$('#scanBtn');
+  try {
+    btn.disabled=true;
+    btn.textContent='Başlatılıyor…';
+    await json('/api/scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({discover:true})});
+    await loadStats();
+    btn.textContent='Taranıyor…';
+  } catch(e) {
+    alert('Tarama başlatılamadı: '+e.message);
+    btn.disabled=false;
+    btn.textContent='Şimdi Tara';
+  }
+};
 $('#settingsBtn').onclick=async()=>{await renderSettings();$('#settingsDialog').showModal()};
 $('#closeDialog').onclick=()=>$('#settingsDialog').close();
 $('#addCategory').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target);const b=Object.fromEntries(fd.entries());b.enabled=true;await json('/api/categories',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});e.target.reset();await renderSettings()};
 
 await loadCategories(); await Promise.all([loadStats(),loadProducts()]);
-setInterval(loadStats,5000);
+let wasRunning=false;
+setInterval(async()=>{
+  try {
+    const s=await json('/api/stats');
+    const state=s.scanState||{};
+    const running=!!state.running;
+    $('#stats').innerHTML=`
+      <div class="stat"><div class="l">Aktif ürün</div><div class="n">${fmt(s.totalProducts)}</div></div>
+      <div class="stat"><div class="l">Bugün taranan</div><div class="n">${fmt(s.scannedToday)}</div></div>
+      <div class="stat"><div class="l">Whitelist kategori</div><div class="n">${fmt(s.enabledCategories)}</div></div>
+      <div class="stat"><div class="l">Tarama</div><div class="n">${running?'Çalışıyor':'Hazır'}</div><div class="status">${esc(scanNote(state))}</div></div>`;
+    $('#scanBtn').disabled=running;
+    $('#scanBtn').textContent=running?'Taranıyor…':'Şimdi Tara';
+    if(wasRunning && !running) await loadProducts();
+    wasRunning=running;
+  } catch(e) { console.error(e); }
+},3000);
