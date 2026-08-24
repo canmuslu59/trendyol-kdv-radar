@@ -11,7 +11,7 @@
   <div>
     <div class="eyebrow">TRENDYOL ÜRÜN AVCISI</div>
     <h1>KDV Radar</h1>
-    <p>%1 KDV whitelist kategorilerinde fiyat ve değerlendirme hızını takip eder.</p>
+    <p>Yalnızca Takviye Edici Gıda & Vitamin kategorisinde fiyat ve değerlendirme hızını takip eder.</p>
   </div>
   <div class="header-actions">
     <button id="scanBtn" class="primary">Şimdi Tara</button>
@@ -23,21 +23,35 @@
   <section class="stats" id="stats"></section>
   <section class="panel filters">
     <input id="q" placeholder="Ürün veya marka ara…" />
-    <select id="category"><option value="">Tüm whitelist</option></select>
+    <select id="category"><option value="">Takviye Edici Gıda & Vitamin</option></select>
     <input id="minPrice" type="number" placeholder="Min fiyat" />
     <input id="maxPrice" type="number" placeholder="Max fiyat" />
     <input id="minD7" type="number" placeholder="Min 7G artış" />
     <input id="minD30" type="number" placeholder="Min 30G artış" />
-    <select id="sort">
+    <select id="sort" title="Sıralama alanı">
+      <option value="rating">Toplam değerlendirme</option>
       <option value="d30">30G artış</option><option value="d15">15G artış</option><option value="d7">7G artış</option>
-      <option value="d1">1G artış</option><option value="price">Fiyat</option><option value="rating">Toplam değerlendirme</option>
+      <option value="d1">1G artış</option><option value="price">Fiyat</option><option value="name">Ürün adı</option>
     </select>
+    <select id="dir" title="Sıralama yönü"><option value="desc">Azalan ↓</option><option value="asc">Artan ↑</option></select>
     <button id="apply">Filtrele</button>
   </section>
 
+  <div class="sort-help">Sıralamak için <b>En düşük fiyat, Toplam değ., 1G, 7G, 15G veya 30G</b> başlığına tıkla. İkinci tık yönü tersine çevirir.</div>
+
   <section class="panel table-wrap">
     <table>
-      <thead><tr><th>Ürün</th><th>Kategori</th><th>KDV</th><th>Baz kom.</th><th>En düşük fiyat</th><th>Toplam değ.</th><th>1G</th><th>7G</th><th>15G</th><th>30G</th><th>Tarih</th></tr></thead>
+      <thead><tr>
+        <th class="sortable" data-sort="name" tabindex="0">Ürün <span class="sort-indicator">↕</span></th>
+        <th>Kategori</th><th>KDV</th><th>Baz kom.</th>
+        <th class="sortable" data-sort="price" tabindex="0">En düşük fiyat <span class="sort-indicator">↕</span></th>
+        <th class="sortable" data-sort="rating" tabindex="0">Toplam değ. <span class="sort-indicator">↕</span></th>
+        <th class="sortable" data-sort="d1" tabindex="0">1G <span class="sort-indicator">↕</span></th>
+        <th class="sortable" data-sort="d7" tabindex="0">7G <span class="sort-indicator">↕</span></th>
+        <th class="sortable" data-sort="d15" tabindex="0">15G <span class="sort-indicator">↕</span></th>
+        <th class="sortable" data-sort="d30" tabindex="0">30G <span class="sort-indicator">↕</span></th>
+        <th>Tarih</th>
+      </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
     <div id="empty" class="empty" hidden>Henüz veri yok. “Şimdi Tara” ile ilk taramayı başlat.</div>
