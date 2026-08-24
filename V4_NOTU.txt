@@ -1,0 +1,6 @@
+V4: Chromium/DOM taraması kaldırıldı. Trendyol'un public JSON discovery endpoint'i kullanılıyor.
+GitHub repo köküne bu 3 dosyayı aynı yollarla yükleyip mevcut dosyaların üzerine yazın:
+- Dockerfile
+- package.json
+- src/scraper.js
+Railway otomatik deploy edecektir.
