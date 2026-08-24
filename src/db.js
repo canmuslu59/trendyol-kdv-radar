@@ -91,4 +91,33 @@ const seeds = [
 ];
 for (const row of seeds) seed.run(...row);
 
+// V8: supplement-only hard lock + one-time cleanup of the contaminated first scan.
+const supplementUrl = 'https://www.trendyol.com/gida-takviyeleri-vitaminler-x-c105085';
+const supplement = db.prepare('SELECT id FROM categories WHERE trendyol_url=?').get(supplementUrl);
+if (!supplement) throw new Error('Takviye kategorisi oluşturulamadı');
+
+const v8ResetDone = db.prepare("SELECT value FROM settings WHERE key='v8_supplement_reset_done'").get();
+if (!v8ResetDone) {
+  const reset = db.transaction(() => {
+    // The first local-agent scan mixed recommendation links from unrelated categories.
+    // Purge that initial data so daily deltas start from clean supplement-only snapshots.
+    db.prepare('DELETE FROM snapshots').run();
+    db.prepare('DELETE FROM products').run();
+    db.prepare('DELETE FROM agent_jobs').run();
+    db.prepare('DELETE FROM categories WHERE trendyol_url<>?').run(supplementUrl);
+    db.prepare(`UPDATE categories SET enabled=1,max_pages=25,updated_at=CURRENT_TIMESTAMP WHERE trendyol_url=?`).run(supplementUrl);
+    db.prepare(`INSERT INTO settings(key,value) VALUES('v8_supplement_reset_done','1') ON CONFLICT(key) DO UPDATE SET value='1'`).run();
+  });
+  reset();
+} else {
+  // Keep the installation locked to a single category on every restart.
+  db.prepare(`UPDATE categories SET enabled=CASE WHEN trendyol_url=? THEN 1 ELSE 0 END,updated_at=CURRENT_TIMESTAMP`).run(supplementUrl);
+}
+
+// Any job left behind by a browser/extension reload is safe to close.
+db.prepare(`UPDATE agent_jobs
+  SET status='failed',finished_at=CURRENT_TIMESTAMP,
+      error='V8 güncellemesi nedeniyle eski tarama kapatıldı',updated_at=CURRENT_TIMESTAMP
+  WHERE status IN ('pending','running')`).run();
+
 export default db;

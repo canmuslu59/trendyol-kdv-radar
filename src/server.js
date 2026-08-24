@@ -7,6 +7,7 @@ import db from './db.js';
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const agentSecret = process.env.AGENT_TOKEN || process.env.APP_PASSWORD || '';
+const SUPPLEMENT_URL = 'https://www.trendyol.com/gida-takviyeleri-vitaminler-x-c105085';
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '4mb' }));
@@ -59,7 +60,9 @@ app.get('/api/agent/job', (req,res) => {
     }
   }
   if (!job) return res.json({job:null});
-  const categories = db.prepare('SELECT * FROM categories WHERE enabled=1 ORDER BY id').all();
+  const categories = db.prepare(`SELECT * FROM categories
+      WHERE enabled=1 AND trendyol_url='https://www.trendyol.com/gida-takviyeleri-vitaminler-x-c105085'
+      ORDER BY id`).all();
   res.json({
     job:{id:job.id,status:job.status,requestedAt:job.requested_at},
     categories:categories.map(c=>({
@@ -85,7 +88,7 @@ function saveAgentProduct(category, data){
   db.prepare(`INSERT INTO snapshots(product_id,scan_date,rating_count,review_count,price,seller_count,available,raw_note)
     VALUES(?,?,?,?,?,?,?,?)
     ON CONFLICT(product_id,scan_date) DO UPDATE SET scanned_at=CURRENT_TIMESTAMP,rating_count=excluded.rating_count,review_count=excluded.review_count,price=excluded.price,seller_count=excluded.seller_count,available=excluded.available,raw_note=excluded.raw_note`)
-    .run(product.id,todayIstanbul(),data.ratingCount??null,data.reviewCount??null,data.price??null,data.sellerCount??null,data.available===false?0:1,'chrome-agent-v6');
+    .run(product.id,todayIstanbul(),data.ratingCount??null,data.reviewCount??null,data.price??null,data.sellerCount??null,data.available===false?0:1,'chrome-agent-v8');
   return {saved:true};
 }
 
@@ -94,8 +97,8 @@ app.post('/api/agent/upload', (req,res) => {
   const {jobId,categoryId,page,products=[]} = req.body || {};
   const job=db.prepare('SELECT * FROM agent_jobs WHERE id=?').get(Number(jobId));
   if(!job || !['running','pending'].includes(job.status)) return res.status(409).json({error:'Aktif iş bulunamadı'});
-  const category=db.prepare('SELECT * FROM categories WHERE id=?').get(Number(categoryId));
-  if(!category) return res.status(400).json({error:'Kategori bulunamadı'});
+  const category=db.prepare('SELECT * FROM categories WHERE id=? AND trendyol_url=? AND enabled=1').get(Number(categoryId),SUPPLEMENT_URL);
+  if(!category) return res.status(400).json({error:'Yalnızca Takviye Edici Gıda & Vitamin kategorisi kabul ediliyor'});
   let saved=0,excludedCount=0;
   const tx=db.transaction(()=>{
     for(const p of Array.isArray(products)?products:[]){
@@ -146,25 +149,22 @@ function dateOffset(days) {
 }
 
 app.get('/api/health', (_,res)=>res.json({ok:true,agentOnline:agentOnline()}));
-app.get('/api/categories', (_, res) => res.json(db.prepare('SELECT * FROM categories ORDER BY name').all()));
-app.post('/api/categories', (req,res)=>{
-  const b=req.body||{};
-  const info=db.prepare(`INSERT INTO categories(name,trendyol_url,vat_rate,base_commission,enabled,max_pages,exclude_keywords,note) VALUES(?,?,?,?,?,?,?,?)`)
-    .run(b.name,b.trendyol_url,Number(b.vat_rate??1),b.base_commission===''?null:Number(b.base_commission),b.enabled?1:0,Number(b.max_pages||0),b.exclude_keywords||'',b.note||'');
-  res.json({id:info.lastInsertRowid});
-});
+app.get('/api/categories', (_, res) => res.json(db.prepare('SELECT * FROM categories WHERE trendyol_url=? ORDER BY name').all(SUPPLEMENT_URL)));
+app.post('/api/categories', (_req,res)=>res.status(403).json({error:'V8 yalnızca Takviye Edici Gıda & Vitamin kategorisini kullanır'}));
 app.put('/api/categories/:id',(req,res)=>{
   const b=req.body||{};
-  db.prepare(`UPDATE categories SET name=?,trendyol_url=?,vat_rate=?,base_commission=?,enabled=?,max_pages=?,exclude_keywords=?,note=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-    .run(b.name,b.trendyol_url,Number(b.vat_rate??1),b.base_commission===''?null:Number(b.base_commission),b.enabled?1:0,Number(b.max_pages||0),b.exclude_keywords||'',b.note||'',Number(req.params.id));
+  const c=db.prepare('SELECT * FROM categories WHERE id=? AND trendyol_url=?').get(Number(req.params.id),SUPPLEMENT_URL);
+  if(!c) return res.status(403).json({error:'Bu kategori düzenlenemez'});
+  db.prepare(`UPDATE categories SET name=?,vat_rate=?,base_commission=?,enabled=1,max_pages=?,exclude_keywords=?,note=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(b.name||c.name,Number(b.vat_rate??c.vat_rate),b.base_commission===''?null:Number(b.base_commission??c.base_commission),Math.max(1,Number(b.max_pages||c.max_pages||25)),b.exclude_keywords||'',b.note||'',c.id);
   res.json({ok:true});
 });
-app.delete('/api/categories/:id',(req,res)=>{db.prepare('DELETE FROM categories WHERE id=?').run(Number(req.params.id));res.json({ok:true})});
+app.delete('/api/categories/:id',(_req,res)=>res.status(403).json({error:'Takviye kategorisi silinemez'}));
 
 app.get('/api/products',(req,res)=>{
   const {q='',category='',minPrice='',maxPrice='',minD1='',minD7='',minD15='',minD30='',sort='d30',dir='desc',limit='500'}=req.query;
   const targets={d1:dateOffset(1),d7:dateOffset(7),d15:dateOffset(15),d30:dateOffset(30)};
-  const params=[targets.d1,targets.d7,targets.d15,targets.d30]; const wh=['p.active=1'];
+  const params=[targets.d1,targets.d7,targets.d15,targets.d30,SUPPLEMENT_URL]; const wh=['p.active=1','c.trendyol_url=?'];
   if(q){wh.push('(p.name LIKE ? OR p.brand LIKE ?)');params.push(`%${q}%`,`%${q}%`)}
   if(category){wh.push('c.id=?');params.push(Number(category))}
   if(minPrice){wh.push('s.price>=?');params.push(Number(minPrice))} if(maxPrice){wh.push('s.price<=?');params.push(Number(maxPrice))}
@@ -196,9 +196,9 @@ function publicScanState(){
   return {running,startedAt:job.started_at||job.requested_at,finishedAt:job.finished_at,lastResult:result,progress,error:job.error||null,status:job.status,mode:'local-chrome-agent'};
 }
 app.get('/api/stats',(_,res)=>{
-  const total=db.prepare('SELECT COUNT(*) n FROM products WHERE active=1').get().n;
-  const scannedToday=db.prepare("SELECT COUNT(*) n FROM snapshots WHERE scan_date=date('now','+3 hours')").get().n;
-  const cats=db.prepare('SELECT COUNT(*) n FROM categories WHERE enabled=1').get().n;
+  const total=db.prepare('SELECT COUNT(*) n FROM products p JOIN categories c ON c.id=p.category_id WHERE p.active=1 AND c.trendyol_url=?').get(SUPPLEMENT_URL).n;
+  const scannedToday=db.prepare("SELECT COUNT(*) n FROM snapshots s JOIN products p ON p.id=s.product_id JOIN categories c ON c.id=p.category_id WHERE s.scan_date=date('now','+3 hours') AND c.trendyol_url=?").get(SUPPLEMENT_URL).n;
+  const cats=db.prepare('SELECT COUNT(*) n FROM categories WHERE enabled=1 AND trendyol_url=?').get(SUPPLEMENT_URL).n;
   res.json({totalProducts:total,scannedToday,enabledCategories:cats,scanState:publicScanState(),agent:{online:agentOnline(),lastSeen:getSetting('agent_last_seen'),version:getSetting('agent_version')}});
 });
 
