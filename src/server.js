@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import cron from 'node-cron';
 import path from 'node:path';
 import db from './db.js';
-import { runFullScan } from './scraper.js';
+import { runFullScan, networkDiagnostics } from './scraper.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -36,6 +36,10 @@ function dateOffset(days) {
 }
 
 app.get('/api/health', (_, res) => res.json({ ok: true, scanState }));
+app.get('/api/network-check', async (_, res) => {
+  try { res.json({ ok:true, checks: await networkDiagnostics() }); }
+  catch (e) { res.status(500).json({ ok:false, error:e.message }); }
+});
 app.get('/api/categories', (_, res) => res.json(db.prepare('SELECT * FROM categories ORDER BY name').all()));
 
 app.post('/api/categories', (req, res) => {
